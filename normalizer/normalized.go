@@ -641,8 +641,15 @@ func (n *NormalizedString) TransformRange(inputRange *Range, changeMap []ChangeM
 
 		var removingFromOriginal, removingFromNormalized int = 0, 0
 		if totalBytesToRemove > 0 {
+			if idx >= len(n.alignments) {
+				idx = len(n.alignments) - 1
+			}
 			start := n.alignments[idx][1]
-			end := n.alignments[idx+totalBytesToRemove][1]
+			endIdx := idx + totalBytesToRemove
+			if endIdx >= len(n.alignments) {
+				endIdx = len(n.alignments) - 1
+			}
+			end := n.alignments[endIdx][1]
 			originalRange := util.MakeRange(start, end)
 			// fmt.Printf("start: %v - end: %v; range: (%+v)\n", start, end, originalRange)
 			removingFromOriginal = len(originalRange)
@@ -717,8 +724,15 @@ func (n *NormalizedString) TransformRange(inputRange *Range, changeMap []ChangeM
 
 		// If some were removed, we need to zero them out in the original alignments
 		if removingFromOriginal > 0 {
+			if idx >= len(n.alignments) {
+				idx = len(n.alignments) - 1
+			}
 			start := n.alignments[idx][1]
-			end := n.alignments[idx+totalBytesToRemove][1]
+			endIdx := idx + totalBytesToRemove
+			if endIdx >= len(n.alignments) {
+				endIdx = len(n.alignments) - 1
+			}
+			end := n.alignments[endIdx][1]
 			// They should use the original alignment of the current character
 			newIdx := n.alignmentsOriginal[align[0]][1]
 			alignments := n.alignmentsOriginal[start:end]

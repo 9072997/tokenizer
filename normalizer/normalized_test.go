@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	// "strings"
+	"strings"
 	"testing"
 	"unicode"
 
@@ -873,6 +873,93 @@ func TestNormalized_TransformRange_MultipleBytes(t *testing.T) {
 	originalShift = 0
 	want24 := normalizer.NewNormalizedString(original, normalized, alignments, alignmentsOriginal, originalShift)
 	test(t, want24, got24)
+}
+
+func TestNormalized_NFD_CombiningGraphemeJoiner(t *testing.T) {
+	// U+034F (Combining Grapheme Joiner) triggered an index-out-of-range
+	// panic in TransformRange when the alignment index exceeded the slice length.
+	inputs := []string{
+		"a\u034Fb",
+		"\u034F",
+		"e\u0301\u034F",
+		"hello\u034Fworld",
+		strings.Repeat("x\u034F ", 200),
+	}
+	for _, input := range inputs {
+		t.Run(fmt.Sprintf("%q", input), func(t *testing.T) {
+			n := normalizer.NewNormalizedFrom(input)
+			n = n.NFD()
+			if n.GetNormalized() == "" && input != "" {
+				t.Errorf("expected non-empty normalized result")
+			}
+		})
+	}
+}
+
+func TestNormalized_NFD_CRLF(t *testing.T) {
+	// CRLF line endings (common in IMAP email) triggered an index-out-of-range
+	// panic in TransformRange when idx exceeded len(n.alignments).
+	inputs := []string{
+		"hello\r\nworld",
+		"\r\n",
+		"line1\r\nline2\r\nline3",
+		strings.Repeat("x\r\n", 200),
+	}
+	for _, input := range inputs {
+		t.Run(fmt.Sprintf("%q", input), func(t *testing.T) {
+			n := normalizer.NewNormalizedFrom(input)
+			n = n.NFD()
+			if n.GetNormalized() == "" && input != "" {
+				t.Errorf("expected non-empty normalized result")
+			}
+		})
+	}
+}
+
+func TestNormalized_NFD_MultiByteChars(t *testing.T) {
+	// Multi-byte UTF-8 characters (4-byte math symbols, emoji, CJK) triggered
+	// index-out-of-range panics because byte-based offsets were used to index
+	// the rune-based alignments slice. See baofu115/tokenizer and zjtaozjtw/tokenizer.
+	inputs := []string{
+		"𝔾𝕠𝕠𝕕",
+		"𝔾𝕠𝕠𝕕 𝕞𝕠𝕣𝕟𝕚𝕟𝕘",
+		"Hello my name is John 👋",
+		"野口 No",
+		"中文，标点。测试！",
+		"élégant",
+		"café résumé naïve",
+	}
+	for _, input := range inputs {
+		t.Run(input, func(t *testing.T) {
+			n := normalizer.NewNormalizedFrom(input)
+			n = n.NFD()
+			if n.GetNormalized() == "" {
+				t.Errorf("expected non-empty normalized result")
+			}
+		})
+	}
+}
+
+func TestNormalized_NFD_NestedBraces(t *testing.T) {
+	// Nested configuration syntax with specific spacing patterns triggered
+	// alignment array overflow in TransformRange. See splack/tokenizer.
+	input := `config = option {
+        type = types.module {
+          fields = {
+            items = option {
+              type = types.list types.text;
+              default = [ "1.1.1.1" "8.8.8.8" ];
+              description = "List of addresses for checks";
+            };
+          };
+        };
+        default = {};
+      };`
+	n := normalizer.NewNormalizedFrom(input)
+	n = n.NFD()
+	if n.GetNormalized() == "" {
+		t.Errorf("expected non-empty normalized result")
+	}
 }
 
 func test(t *testing.T, want, got interface{}) {
