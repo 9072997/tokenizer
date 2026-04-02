@@ -962,6 +962,37 @@ func TestNormalized_NFD_NestedBraces(t *testing.T) {
 	}
 }
 
+func TestNormalized_Replace_CRLFWithMultiByte(t *testing.T) {
+	// When a Precompiled normalizer (sentencepiece charmap) followed by
+	// repeated Replace operations processes text with CRLF line endings and
+	// multi-byte UTF-8 characters (smart quotes, ellipsis, narrow NBSP),
+	// the alignment arrays can become corrupted such that
+	// expandAlignments returns an inverted range (start > end). This
+	// caused a panic in TransformRange at the endRange slice on line 788.
+	//
+	// The full reproduction requires the model's Precompiled charmap to
+	// corrupt alignment state, which is validated by the llmail guard
+	// integration tests. This test exercises the Replace + NFC path with
+	// multi-byte/CRLF content to guard against regressions on the
+	// simpler code path.
+	var b strings.Builder
+	for i := 0; i < 40; i++ {
+		b.WriteString("caf\u00e9 resum\u00e9  na\u00efve\r\n")
+		b.WriteString("> I\u2019d say it\u2019s  fine\u2026  wouldn\u2019t you?\r\n")
+		b.WriteString(">>  12:18\u202fPM  \u4e2d\u6587\r\n")
+	}
+	input := b.String()
+
+	n := normalizer.NewNormalizedFrom(input)
+	n, _ = normalizer.NewReplace(normalizer.Regex, ` {2,}`, " ").Normalize(n)
+	n, _ = normalizer.NewReplace(normalizer.String, ` `, "").Normalize(n)
+	n = n.NFC()
+
+	if n.GetNormalized() == "" {
+		t.Errorf("expected non-empty normalized result")
+	}
+}
+
 func test(t *testing.T, want, got interface{}) {
 	if !reflect.DeepEqual(want, got) {
 		t.Errorf("Want: %v\n", want)

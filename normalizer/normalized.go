@@ -776,6 +776,9 @@ func (n *NormalizedString) TransformRange(inputRange *Range, changeMap []ChangeM
 	if oShift != 0 {
 		// log.Printf("Shifting the end  from %v using shift: %v\n", endShiftStart, oShift)
 
+		if endShiftStart > len(n.alignments) {
+			endShiftStart = len(n.alignments)
+		}
 		var endShift [][]int
 		for _, item := range n.alignments[endShiftStart:] {
 			endShift = append(endShift, item)
@@ -784,7 +787,7 @@ func (n *NormalizedString) TransformRange(inputRange *Range, changeMap []ChangeM
 
 		// log.Printf("End range: %+v\n", endRange)
 
-		if endRange != nil {
+		if endRange != nil && endRange[0] <= endRange[1] && endRange[1] <= len(n.alignmentsOriginal) {
 			alignments := n.alignmentsOriginal[endRange[0]:endRange[1]]
 			var newAlignments [][]int
 			if len(alignments) > 0 {
